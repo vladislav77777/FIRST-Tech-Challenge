@@ -1,0 +1,22 @@
+package org.firstinspires.ftc.teamcode;
+
+
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+@com.qualcomm.robotcore.eventloop.opmode.Autonomous(name = "TAuto")
+
+public class TestAuto extends LinearOpMode {
+
+    robot2021 R = new robot2021();
+
+    @Override
+    public void runOpMode() throws InterruptedException {
+        R.initFields(telemetry, hardwareMap, this);
+        R.init();
+
+        waitForStart();
+        //you can paste your code for auto mode here(turn right, turn_45 ect)
+    }
+
+
+}
