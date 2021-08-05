@@ -1,0 +1,27 @@
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+import org.firstinspires.ftc.robotcore.external.Telemetry;
+
+@TeleOp(name = "TeleOp")
+
+public class teleop extends LinearOpMode {
+
+    robot2021 R = new robot2021();
+
+    @Override
+    public void runOpMode() throws InterruptedException {
+        R.initFields(telemetry, hardwareMap, this);
+        R.init();
+        R.GamepadInit(gamepad1, gamepad2);
+
+        waitForStart();
+        R.GIRO.start();
+        while (!isStopRequested()) {
+            R.teleOp();
+        }
+    }
+}
