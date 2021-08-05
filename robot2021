@@ -1,0 +1,377 @@
+package org.firstinspires.ftc.teamcode;
+
+import android.graphics.drawable.GradientDrawable;
+
+import com.qualcomm.hardware.bosch.BNO055IMU;
+import com.qualcomm.hardware.modernrobotics.ModernRoboticsI2cGyro;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.Servo;
+
+import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
+import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
+
+public class robot2021 extends Robot {
+    Servo servo;
+    DcMotor motor_FR;
+    DcMotor motor_FL;
+    DcMotor motor_BR;
+    DcMotor motor_BL;
+    DcMotor motor_135;
+    DcMotor motor_vsas;
+    ModernRoboticsI2cGyro modernRoboticsI2cGyro;
+    BNO055IMU imu; // gyroscope
+
+    @Override
+    void init() {
+        servo = hwMp.get(Servo.class, "servo");
+        motor_FR = hwMp.get(DcMotor.class, "motor_FR");
+        motor_FL = hwMp.get(DcMotor.class, "motor_FL");
+        motor_BR = hwMp.get(DcMotor.class, "motor_BR");
+        motor_BL = hwMp.get(DcMotor.class, "motor_BL");
+        motor_135 = hwMp.get(DcMotor.class, "motor_135");
+        motor_vsas = hwMp.get(DcMotor.class, "motor_vsas");
+
+        modernRoboticsI2cGyro = hwMp.get(ModernRoboticsI2cGyro.class, "modernRoboticsI2cGyro");
+
+        imu = hwMp.get(BNO055IMU.class, "imu");
+
+        // при непосредственной работе с базой!
+        motor_FL.setDirection(DcMotorSimple.Direction.REVERSE);                                   //  было BL!!!!!!!!!!!!!!
+        motor_vsas.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        motor_BL.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);                                 // zeroing encoders
+        motor_BR.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+
+        motor_BL.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);                                    // указывать without
+        motor_BR.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        motor_FL.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);                                    // указывать without
+        motor_FR.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        motor_135.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        motor_vsas.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
+
+        motor_FL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);                           // sudden stop at 0
+        motor_FR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        motor_BL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        motor_BR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        motor_135.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        motor_vsas.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+
+        BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
+
+        parameters.mode = BNO055IMU.SensorMode.IMU;
+        parameters.angleUnit = BNO055IMU.AngleUnit.DEGREES;
+        parameters.accelUnit = BNO055IMU.AccelUnit.METERS_PERSEC_PERSEC;
+        parameters.loggingEnabled = false;
+        imu.initialize(parameters);
+
+        while (!imu.isGyroCalibrated()) {
+            delay(30);
+            tele.addData("Wait", "Calibrating");
+            tele.update();
+        }
+
+        tele.addData("Gyro Calibrating.", " Do Not Move!");
+        modernRoboticsI2cGyro.calibrate();
+        tele.update();
+        while (modernRoboticsI2cGyro.isCalibrating()) {
+            tele.addData("Wait", "Calibrating 2");
+            tele.update();
+            delay(50);
+        }
+        tele.addData("OK", "Calibrated");
+        tele.update();
+    }
+
+    @Override
+    void initFields(Telemetry tele, HardwareMap hwMp, LinearOpMode L) {
+        this.tele = tele;
+        this.hwMp = hwMp;
+        this.L = L;
+    }
+
+    public void baseMotorsetPower(double FR, double BL, double BR, double FL) {
+        motor_FR.setPower(FR);
+        motor_BL.setPower(BL);
+        motor_BR.setPower(BR);
+        motor_FL.setPower(FL);
+
+    }
+
+
+    double getAngle() {                                                                           // getting data from the gyroscope
+        Orientation orientation = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
+
+        double angle = orientation.firstAngle;
+        angle = (angle <= 0) ? -angle : 360 - angle;
+        return angle;
+
+    }
+
+    double to_180(double angle) {                                                                 // auto
+        if (angle > 180)
+            return angle - 360;
+        else if (angle < -180)
+            return angle + 360;
+        else
+            return angle;
+    }
+
+    double error = 0;
+    double Error = 0;
+
+    public double keep_yaw(int count) {                                                           // auto
+        Orientation orientation = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
+
+        if (count == 0)
+            Error = orientation.firstAngle;
+        else {
+            error = orientation.firstAngle - Error;
+        }
+        error = to_180(error);
+        tele.addData("orientation.firstAngle", orientation.firstAngle);
+        tele.addData("Error", Error);
+
+        tele.update();
+        return error;
+    }
+
+
+    public void A_C(double x, double y) {                                                         // auto_mode
+        double L_x = (x + y) / Math.sqrt(2);
+        double L_y = (y - x) / Math.sqrt(2);
+        double tics_x = Math.abs((L_x * 1120) / (Math.PI * 0.05 * 2));
+        double tics_y = Math.abs((L_y * 1120) / (Math.PI * 0.05 * 2));
+        double speedx, speedy;
+        int count = 0;
+
+        motor_BR.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);// zeroing encoders
+        motor_BR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        motor_BL.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);// обнуление энкодеров
+        motor_BL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        keep_yaw(count);
+        count++;
+        while ((Math.abs(motor_BR.getCurrentPosition()) < tics_x || Math.abs(motor_BL.getCurrentPosition()) < tics_y) && !L.isStopRequested()) {
+            double power_value = keep_yaw(count) * 0.01;
+
+            if (L_x > 0)
+                speedx = 1.2 - (motor_BR.getCurrentPosition() / tics_x);
+            else
+                speedx = -1.2 - (motor_BR.getCurrentPosition() / tics_x);
+            if (L_y > 0)
+                speedy = 1.2 - (motor_BL.getCurrentPosition() / tics_y);
+            else
+                speedy = -1.2 - (motor_BL.getCurrentPosition() / tics_y);
+
+            baseMotorsetPower(speedy - power_value, speedy + power_value, speedx - power_value, speedx + power_value);
+
+
+         /*   tele.addData("power_value ", power_value);
+
+            tele.addData("FL and BR speed:", speedx);
+            tele.addData("FR and BL :", speedy);
+            tele.update();*/
+
+            if (Math.abs(motor_BR.getCurrentPosition()) >= tics_x)
+                baseMotorsetPower(speedy - power_value, speedy + power_value, 0 - power_value, 0 + power_value);
+            if (Math.abs(motor_BR.getCurrentPosition()) >= tics_y)
+                baseMotorsetPower(0 - power_value, 0 + power_value, speedx - power_value, speedx + power_value);
+
+        }
+    }
+
+    public void turn_right() {                                                                    //auto
+
+        baseMotorsetPower(-0.5, 0.5, -0.5, 0.5);
+        delay(830);
+        baseMotorsetPower(0, 0, 0, 0);
+    }
+
+    public void turn_45() {
+        baseMotorsetPower(0.5, -0.5, 0.5, -0.5);
+        delay(370);
+        baseMotorsetPower(0, 0, 0, 0);
+    }
+
+    public void turn_45_2() {
+        baseMotorsetPower(-0.5, 0.5, -0.5, 0.5);
+        delay(370);
+        baseMotorsetPower(0, 0, 0, 0);
+    }
+
+    public void Wheel_control() {                                                                 // TELE HEADLESS MODE HEADLESS MODE
+        double x = -gamepad1.left_stick_x;
+        double y = -gamepad1.left_stick_y;
+        int rawX = modernRoboticsI2cGyro.rawX();
+        int rawY = modernRoboticsI2cGyro.rawY();
+        int rawZ = modernRoboticsI2cGyro.rawZ();
+        double x_1 = x * Math.cos(Math.toRadians(45 + getAngle())) + y * Math.sin(Math.toRadians(45 + getAngle()));
+        double y_1 = -x * Math.sin(Math.toRadians(45 + getAngle())) + y * Math.cos(Math.toRadians(45 + getAngle()));
+
+        double l = Math.sqrt(x * x + y * y);
+        double rt = gamepad1.right_trigger;
+        double lt = gamepad1.left_trigger;
+        if (x_1 == 0 && y_1 == 0) {
+
+        } else if (Math.abs(x_1) > Math.abs(y_1)) {
+            y_1 /= Math.abs(x_1);
+            x_1 /= Math.abs(x_1);
+        } else if (Math.abs(y_1) >= Math.abs(x_1)) {
+            x_1 /= Math.abs(y_1);
+            y_1 /= Math.abs(y_1);
+        }
+        x_1 *= l;
+        y_1 *= l;
+        if (gamepad1.b)
+            baseMotorsetPower((x_1 - rt + lt) / 3, (x_1 + rt - lt) / 3, (y_1 - rt + lt) / 3, (y_1 + rt - lt / 3));
+        else
+            baseMotorsetPower(x_1 - rt + lt, x_1 + rt - lt, y_1 - rt + lt, y_1 + rt - lt);
+
+    }
+
+    boolean buttonWasY = false;
+    boolean motorY = false;
+
+    public void vsas() {                                                                          // tele
+        boolean buttonIsY = gamepad2.y;
+
+        if (!buttonWasY && buttonIsY) {
+            buttonIsY = gamepad2.y;
+            motorY = !motorY;
+            if (motorY == false) {
+                motor_vsas.setPower(0);
+            } else {
+                motor_vsas.setPower(0.8);
+            }
+        }
+        buttonWasY = buttonIsY;
+
+    }
+
+    void teleOp() {
+        Wheel_control();
+        turn_to_135_test();
+        vsas();
+        //THE CONTENT OF THE CODE FOR teleop
+    }
+
+    boolean buttonWas = false;
+    boolean motor = false;
+    double prev_err = 0;
+    double I_err = 0;    // GLOBAL
+    int count = 0;   // Режимы работы 1- состояние впeред, 2 - назад
+
+    void turn_to_135_test() {                                                                     // tele
+        double zAngle = modernRoboticsI2cGyro.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;
+        if (zAngle < 0.0)
+            zAngle = 360.0 + zAngle;
+
+        boolean buttonIs = gamepad2.a;
+        tele.addData("buttonIs ", buttonIs);
+        tele.addData("zAngle ", zAngle);
+        tele.addData("count ", count);
+        tele.addData("motor ", motor);
+        tele.update();
+
+        if (!buttonWas && buttonIs) {
+            buttonIs = gamepad2.a;
+
+            motor = !motor;
+            if (motor == false) {
+
+                motor_135.setPower(-0.6);
+                count = 2;
+
+            } else {
+                motor_135.setPower(0.98);
+                count = 1;
+            }
+
+
+        }
+        buttonWas = buttonIs;
+
+        if (zAngle >= 80.0 && count == 1) {
+            motor_135.setPower(0.7);
+            count = 3;
+        }
+        if (zAngle <= 69.0 && count == 2) {
+            motor_135.setPower(0.53);
+            count = 4;
+        }
+
+        if (count == 3) {
+
+            double err = zAngle - 125.0;
+            double D_err = (err - prev_err) / 0.05;
+            I_err += (err + prev_err) / 2 * 0.05;
+            prev_err = err;
+
+            double out = err * 0.014 + D_err * 0.0014 + I_err * 0;
+
+            motor_135.setPower(-out);
+        }
+
+
+        if (count == 4 && zAngle > 20.0) {
+
+            double err = zAngle - 0.0;
+            double D_err = (err - prev_err) / 0.05;
+            prev_err = err;
+
+            double out = err * 0.0095 + D_err * 0.05; // 0.0078 0.011
+
+            motor_135.setPower(out);
+        } else if (count == 4 && zAngle <= 20.0 && zAngle > 5.0)
+            motor_135.setPower(0.2);
+        else if (count == 4 && zAngle <= 5.0)
+            motor_135.setPower(-0.1);
+    }
+
+
+    public void turn_to_135_auto() {
+        double zAngle = modernRoboticsI2cGyro.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;
+
+        while (zAngle < 80.0) {
+            motor_135.setPower(0.95);
+            zAngle = modernRoboticsI2cGyro.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;
+        }
+        while (zAngle < 91.0) {
+            zAngle = modernRoboticsI2cGyro.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;
+            double err = zAngle - 90.0;
+            double D_err = (err - prev_err) / 0.05;
+            I_err += (err + prev_err) / 2 * 0.05;
+            prev_err = err;
+
+            double out = err * 0.012 + D_err * 0.0014 + I_err * 0;
+
+            motor_135.setPower(-out);
+        }
+        motor_135.setPower(0);
+        motor_vsas.setPower(0.5);
+        delay(1000);
+        motor_vsas.setPower(0);
+        motor_135.setPower(-0.5);
+        delay(1000);
+        motor_135.setPower(0);
+
+    }
+
+    public Thread GIRO = new Thread() {
+        @Override
+        public void run() {
+
+
+        }
+    };
+}
+
+
